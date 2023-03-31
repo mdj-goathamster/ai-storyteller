@@ -49,9 +49,13 @@ export default function Home() {
   }, [paragraphs])
 
   const _partialTextDone = () => {
-    setTimeout(() => {
-      setShowOptions(true)
-    }, 750);
+    if(partialText.endsWith('The End.')){
+
+    }else{
+      setTimeout(() => {
+        setShowOptions(true)
+      }, 750);
+    }
   }
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export default function Home() {
   const preWrite = (text: string) => {
     selectionRef.current = text
     const queue = text.replace(/\n/g, "<br />").split(' ')
-    setPartialTextQueue(prev => [...prev,"<br /><br />",...queue])
+    setPartialTextQueue(prev => [...prev, "<br /><br />", ...queue])
   }
 
   const selectOption = async (index: number) => {
@@ -88,10 +92,11 @@ export default function Home() {
     const abortController = new AbortController()
     promptParagraph([
       ...systemMessage,
-      { role: "system", content: `the story should be written in the genre of ${genre}` },
+      { role: "system", content: `The story should be written in the genre of ${genre}` },
       { role: 'system', content: 'Write one or two sentences and then stop' },
-      { role: 'assistant', content: paragraphs.join('') },
-      { role: 'user', content: `the next sentence should start with: ${selectedOption}` }
+      { role: 'assistant', content: paragraphs.slice(-3).join('') },
+      { role: 'user', content: `Start the next sentence with: ${selectedOption}` },
+      ...(paragraphs.length > 5 ? [{ role: 'system', content: 'If it makes sense, end the story with: "\nThe End."' } as Message] : []),
     ], abortController.signal)
       .then((paragraph) => {
         if (abortController.signal.aborted) return
@@ -100,7 +105,7 @@ export default function Home() {
         setPrompt([
           ...systemMessage,
           { role: "system", content: `the story should be written in the genre of ${genre}` },
-          { role: 'assistant', content: updateParagraphs.join('') },
+          { role: 'assistant', content: updateParagraphs.slice(-3).join('') },
         ])
       })
     preWrite(selectedOption)
@@ -144,9 +149,7 @@ export default function Home() {
             {!initialized && (<button className={styles.button} onClick={startNewStory}>Start new story</button>)}
           </div>
           <div className={styles.chatArea} ref={chatRef}>
-            {/* {paragraphs.slice(0, -1).map((paragraph, index) => (<p key={index} className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{paragraph}</p>))} */}
-            {partialText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }} dangerouslySetInnerHTML={{__html:partialText}}/>)}
-            {/* {preText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{preText}</p>)} */}
+            {partialText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }} dangerouslySetInnerHTML={{ __html: partialText }} />)}
           </div>
           {initialized && ((!genre && genres.length > 0) || (!selection && suggestions.length > 0 && showOptions)) && <div className={styles.buttonsContainer}>
             {!genre && genres.map((genre, index) => (<button onClick={() => selectGenre(index)} key={index} className={styles.button}>{genre}</button>))}
@@ -283,8 +286,8 @@ const storyOptions = async (messages: Message[], abortSignal: AbortSignal): Prom
         }
       ],
       temperature: .3,
-      presence_penalty:0.5,
-      frequency_penalty:0.5,
+      presence_penalty: 0.5,
+      frequency_penalty: 0.5,
     })
   })
   const data = await response.json()
