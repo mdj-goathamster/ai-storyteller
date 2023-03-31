@@ -29,6 +29,7 @@ export default function Home() {
       if (index >= queue.length) return
       if (index === queue.length - 1) {
         setPartialText(missingText)
+        
       }
       else {
         const word = queue[index]
@@ -36,6 +37,7 @@ export default function Home() {
           return [prev, word].join(' ')
         })
       }
+      if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
       index++
     }, 100);
 
@@ -43,8 +45,6 @@ export default function Home() {
       setPartialText(missingText)
       clearInterval(timeout)
     }
-    // if (!chatRef.current) return;
-    // chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [paragraphs])
 
   useEffect(() => {
