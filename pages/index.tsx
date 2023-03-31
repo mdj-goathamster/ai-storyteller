@@ -3,6 +3,8 @@ import styles from '@/styles/Home.module.css'
 import { useEffect, useRef, useState } from 'react';
 import { Source_Sans_Pro } from 'next/font/google'
 import { clearInterval, setInterval } from 'timers';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPrint } from '@fortawesome/free-solid-svg-icons'
 
 const FontSSP = Source_Sans_Pro({ weight: '400', subsets: ['latin'] })
 export default function Home() {
@@ -88,6 +90,18 @@ export default function Home() {
         ])
       })
   }
+  const print = () => {
+    const printWindow = window.open('', 'PRINT');
+    printWindow?.document.write('<html><head><title>' + document.title + '</title>');
+    printWindow?.document.write('</head><body >');
+    printWindow?.document.write(chatRef?.current?.innerHTML || paragraphs.join('\n'));
+    printWindow?.document.write('</body></html>');
+    printWindow?.document.close(); // necessary for IE >= 10
+    printWindow?.focus(); // necessary for IE >= 10*/
+    printWindow?.print();
+    printWindow?.close();
+    return true;
+  }
 
   const reset = () => {
     setInitialized(false)
@@ -104,7 +118,7 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <Head>
-        <title>Modern Chat UI</title>
+        <title>DSB Story Teller</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
       <main className={styles.main}>
@@ -122,11 +136,11 @@ export default function Home() {
             {!selection && suggestions.map((suggestion, index) => (<button onClick={() => selectOption(index)} key={index} className={styles.button}>{suggestion}</button>))}
           </div>}
         </div>
+        <FontAwesomeIcon size={'2xl'} icon={faPrint} color={'white '} onClick={print}/>
       </main>
     </div>
   )
 }
-
 const systemMessage: Message[] = [
   {
     role: "system",
