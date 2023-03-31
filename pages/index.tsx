@@ -13,39 +13,46 @@ export default function Home() {
   const { suggestions, selection, select, reset: resetStoreOptions, setPrompt } = useStoryOptions({ enabled: initialized })
   const [paragraphs, setParagraphs] = useState<string[]>([])
   const [partialText, setPartialText] = useState<string>('')
+  const selectionRef = useRef<string>('')
   const chatRef = useRef<HTMLDivElement>(null)
+  const [showOptions, setShowOptions] = useState<boolean>(false)
+  const [partialTextQueue, setPartialTextQueue] = useState<string[]>([])
 
   useEffect(() => {
     reset()
   }, [])
 
   useEffect(() => {
+    if (partialTextQueue.length === 0) {
+      _partialTextDone()
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      const updatedQueue = [...partialTextQueue]
+      const text = updatedQueue.shift()
+      setPartialText(pre => [pre, text].join(' '))
+      setPartialTextQueue(updatedQueue)
+      setShowOptions(false)
+    }, 200);
+
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+
+    return () => clearTimeout(timeout)
+  }, [partialTextQueue])
+
+  useEffect(() => {
     if (paragraphs.length === 0) return
     const missingText = paragraphs[paragraphs.length - 1]
-    const queue = missingText.split(' ')
-    let index = 0;
-    setPartialText('')
-    const timeout = setInterval(() => {
-      if (index >= queue.length) return
-      if (index === queue.length - 1) {
-        setPartialText(missingText)
-        
-      }
-      else {
-        const word = queue[index]
-        setPartialText(prev => {
-          return [prev, word].join(' ')
-        })
-      }
-      if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-      index++
-    }, 100);
-
-    return () => {
-      setPartialText(missingText)
-      clearInterval(timeout)
-    }
+    const queue = missingText.substring(selectionRef.current.length, undefined).replace(/\n/g, "<br />").split(' ')
+    setPartialTextQueue(prev => [...prev, ...queue])
   }, [paragraphs])
+
+  const _partialTextDone = () => {
+    setTimeout(() => {
+      setShowOptions(true)
+    }, 750);
+  }
 
   useEffect(() => {
     if (!genre || !initialized || paragraphs.length > 0) return;
@@ -68,8 +75,15 @@ export default function Home() {
     return () => abortController.abort()
   }, [genre, initialized, paragraphs])
 
+  const preWrite = (text: string) => {
+    selectionRef.current = text
+    const queue = text.replace(/\n/g, "<br />").split(' ')
+    setPartialTextQueue(prev => [...prev,"<br /><br />",...queue])
+  }
+
   const selectOption = async (index: number) => {
     select(index)
+    setShowOptions(false)
     const selectedOption = suggestions[index]
     const abortController = new AbortController()
     promptParagraph([
@@ -89,6 +103,7 @@ export default function Home() {
           { role: 'assistant', content: updateParagraphs.join('') },
         ])
       })
+    preWrite(selectedOption)
   }
   const print = () => {
     const printWindow = window.open('', 'PRINT');
@@ -107,6 +122,8 @@ export default function Home() {
     setInitialized(false)
     setParagraphs([])
     setPartialText('')
+    setPartialTextQueue([])
+    setShowOptions(false)
     resetGenre()
     resetStoreOptions()
   }
@@ -114,7 +131,6 @@ export default function Home() {
     setInitialized(true)
   }
 
-  const writing = paragraphs && paragraphs.length > 0 && (paragraphs[paragraphs.length-1].length - partialText.length) > 3
   return (
     <div className={styles.container}>
       <Head>
@@ -128,15 +144,16 @@ export default function Home() {
             {!initialized && (<button className={styles.button} onClick={startNewStory}>Start new story</button>)}
           </div>
           <div className={styles.chatArea} ref={chatRef}>
-            {paragraphs.slice(0, paragraphs.length - 1).map((paragraph, index) => (<p key={index} className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{paragraph}</p>))}
-            {partialText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{partialText}</p>)}
+            {/* {paragraphs.slice(0, -1).map((paragraph, index) => (<p key={index} className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{paragraph}</p>))} */}
+            {partialText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }} dangerouslySetInnerHTML={{__html:partialText}}/>)}
+            {/* {preText && (<p className={styles.message} style={{ fontFamily: FontSSP.style.fontFamily }}>{preText}</p>)} */}
           </div>
-          {initialized && !writing && ((!genre && genres.length > 0) || (!selection && suggestions.length > 0)) && <div className={styles.buttonsContainer}>
+          {initialized && ((!genre && genres.length > 0) || (!selection && suggestions.length > 0 && showOptions)) && <div className={styles.buttonsContainer}>
             {!genre && genres.map((genre, index) => (<button onClick={() => selectGenre(index)} key={index} className={styles.button}>{genre}</button>))}
             {!selection && suggestions.map((suggestion, index) => (<button onClick={() => selectOption(index)} key={index} className={styles.button}>{suggestion}</button>))}
           </div>}
         </div>
-        <FontAwesomeIcon size={'2xl'} icon={faPrint} color={'white '} onClick={print}/>
+        <FontAwesomeIcon size={'2xl'} icon={faPrint} color={'white '} onClick={print} />
       </main>
     </div>
   )
@@ -232,16 +249,16 @@ const genreOptions = async (abortSignal: AbortSignal): Promise<string[]> => {
         ...systemMessage,
         {
           role: "user",
-          content: "give me 10 options for interesting and inovative genres suited for kids.\nformat your answer as a json array of strings: [\"option1\",\"option2\",...]",
+          content: "give me 7 options for themes / genres suited for kids.\nformat your answer as a json array of strings: [\"option1\",\"option2\",...]",
         }
       ],
-      temperature: .5,
+      temperature: .85,
     })
   })
   try {
     const data = await response.json()
-    console.log(data)
-    const options: string[] = JSON.parse(data.choices[0].message.content.substring(data.choices[0].message.content.indexOf('[', undefined)).toString())
+    const text = data.choices[0].message.content
+    const options: string[] = JSON.parse(text.substring(text.indexOf('['), text.indexOf(']') + 1).toString())
     return options
   } catch (error) {
     throw error
@@ -265,7 +282,9 @@ const storyOptions = async (messages: Message[], abortSignal: AbortSignal): Prom
           content: "give me 3 options for how to start the next sentence.\nformat your answer as a json array of strings: [\"text\",\"text\",...]",
         }
       ],
-      temperature: 0,
+      temperature: .3,
+      presence_penalty:0.5,
+      frequency_penalty:0.5,
     })
   })
   const data = await response.json()
@@ -294,7 +313,6 @@ const promptParagraph = async (messages: Message[], abortSignal: AbortSignal): P
   })
   try {
     const data = await response.json()
-    console.log(data)
     const paragraph: string = data.choices[0].message.content;
     return paragraph
   } catch (e) {
